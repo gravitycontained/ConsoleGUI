@@ -8,6 +8,9 @@ struct main_state : qsf::base_state {
 		this->clear_color = qpl::rgb(12, 12, 12);
 
 		this->call_on_resize();
+
+		this->console.add_random();
+		this->console.start_accepting_input();
 	}
 	void call_on_resize() override {
 		this->console.set_dimension(this->dimension());
@@ -16,8 +19,10 @@ struct main_state : qsf::base_state {
 	void updating() override {
 		this->update(this->console);
 
-		if (this->event().key_pressed(sf::Keyboard::Space)) {
-			this->console.add_random();
+		//if (this->console.enter_pressed) {
+		//	this->console.stop_accepting_input();
+		//}
+		if (this->event().key_pressed(sf::Keyboard::Tab)) {
 			this->console.start_accepting_input();
 		}
 	}
