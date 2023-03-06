@@ -3,7 +3,7 @@
 
 struct main_state : qsf::base_state {
 	void init() override {
-		this->console.load_font("resources/consola.ttf");
+		this->console.set_font("consola");
 
 		this->clear_color = qpl::rgb(12, 12, 12);
 
@@ -16,8 +16,9 @@ struct main_state : qsf::base_state {
 	void updating() override {
 		this->update(this->console);
 
-		if (this->event().key_holding(sf::Keyboard::Space)) {
+		if (this->event().key_pressed(sf::Keyboard::Space)) {
 			this->console.add_random();
+			this->console.start_accepting_input();
 		}
 	}
 	void drawing() override {
@@ -32,6 +33,7 @@ struct main_state : qsf::base_state {
 int main() try {
 	qsf::framework framework;
 	framework.set_title("QPL");
+	framework.add_font("consola", "resources/consola.ttf");
 	framework.set_dimension({ 1400u, 950u });
 
 	framework.add_state<main_state>();

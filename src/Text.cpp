@@ -97,9 +97,7 @@ text::text(text&&) noexcept = default;
 text& text::operator=(text&&) noexcept = default;
 
 void text::set_font(const sf::Font& font) {
-    if (this->font != &font) {
-        this->font = &font;
-    }
+    this->font = &font;
 }
 
 void text::set_character_size(qpl::u32 size) {
@@ -141,6 +139,12 @@ void text::clear() {
     this->text_position.y = 0.f;
     this->rows = 0u;
 }
+void text::pop_last_character() {
+    if (this->last_element.style & sf::Text::Style::Bold) {
+        this->outline_vertices.resize(qpl::max(0ll, qpl::signed_cast(this->outline_vertices.size()) - 6));
+    }
+    this->vertices.resize(qpl::max(0ll, qpl::signed_cast(this->vertices.size()) - 6));
+}
 void text::draw(sf::RenderTarget& target, sf::RenderStates states) const {
     if (this->font) {
 
@@ -155,11 +159,11 @@ void text::draw(sf::RenderTarget& target, sf::RenderStates states) const {
         this->vertices.draw(target, statesCopy);
     }
 }
-void text::create(const qpl::styled_string<std::basic_string<qpl::u32>>& string) {
+void text::create(const qpl::styled_string<qpl::u32_string>& string) {
     this->clear();
     this->add(string);
 }
-void text::add(const qpl::styled_string<std::basic_string<qpl::u32>>& string) {
+void text::add(const qpl::styled_string<qpl::u32_string>& string) {
     if (!this->font) {
         return;
     }
@@ -167,11 +171,10 @@ void text::add(const qpl::styled_string<std::basic_string<qpl::u32>>& string) {
     this->hitbox = qpl::hitbox{};
 
     if (string.empty()) {
-        qpl::println("2");
         return;
     }
-    auto underlineOffset = this->font->getUnderlinePosition(this->character_size);
-    auto underlineThickness = this->font->getUnderlineThickness(this->character_size);
+    auto underline_offset = this->font->getUnderlinePosition(this->character_size);
+    auto underline_thickness = this->font->getUnderlineThickness(this->character_size);
 
 
     auto line_spacing = this->get_line_spacing_pixels();
@@ -186,6 +189,7 @@ void text::add(const qpl::styled_string<std::basic_string<qpl::u32>>& string) {
     auto maxY = 0.f;
     qpl::u32 previous = 0;
 
+    this->last_element.copy_style(string.elements.back());
     for (auto& element : string) {
         bool is_bold = element.style & sf::Text::Style::Bold;
         bool is_underlined = element.style & sf::Text::Style::Underlined;
@@ -210,19 +214,19 @@ void text::add(const qpl::styled_string<std::basic_string<qpl::u32>>& string) {
 
             // If we're using the underlined style and there's a new line, draw a line
             if (is_underlined && (c == U'\n' && previous != U'\n')) {
-                addLine(this->vertices, this->text_position.x, this->text_position.y, element.color, underlineOffset, underlineThickness);
+                addLine(this->vertices, this->text_position.x, this->text_position.y, element.color, underline_offset, underline_thickness);
 
                 if (element.outline_thickness != 0) {
-                    addLine(this->outline_vertices, this->text_position.x, this->text_position.y, element.outline_color, underlineOffset, underlineThickness, element.outline_thickness);
+                    addLine(this->outline_vertices, this->text_position.x, this->text_position.y, element.outline_color, underline_offset, underline_thickness, element.outline_thickness);
                 }
             }
 
             // If we're using the strike through style and there's a new line, draw a line across all characters
             if (is_strike_through && (c == U'\n' && previous != U'\n')) {
-                addLine(this->vertices, this->text_position.x, this->text_position.y, element.color, strike_through_offset, underlineThickness);
+                addLine(this->vertices, this->text_position.x, this->text_position.y, element.color, strike_through_offset, underline_thickness);
 
                 if (element.outline_thickness != 0) {
-                    addLine(this->outline_vertices, this->text_position.x, this->text_position.y, element.outline_color, strike_through_offset, underlineThickness, element.outline_thickness);
+                    addLine(this->outline_vertices, this->text_position.x, this->text_position.y, element.outline_color, strike_through_offset, underline_thickness, element.outline_thickness);
                 }
             }
 
@@ -283,17 +287,17 @@ void text::add(const qpl::styled_string<std::basic_string<qpl::u32>>& string) {
     //}
 
     //if (is_underlined && (x > 0)) {
-    //    addLine(this->vertices, x, y, element.color, underlineOffset, underlineThickness);
+    //    addLine(this->vertices, x, y, element.color, underline_offset, underline_thickness);
     //
     //    if (element.outline_thickness != 0) {
-    //        addLine(this->outline_vertices, x, y, element.outline_color, underlineOffset, underlineThickness, element.outline_thickness);
+    //        addLine(this->outline_vertices, x, y, element.outline_color, underline_offset, underline_thickness, element.outline_thickness);
     //    }
     //}
     //if (is_strike_through && (x > 0)) {
-    //    addLine(this->vertices, x, y, element.color, strike_through_offset, underlineThickness);
+    //    addLine(this->vertices, x, y, element.color, strike_through_offset, underline_thickness);
     //
     //    if (element.outline_thickness != 0) {
-    //        addLine(this->outline_vertices, x, y, element.outline_color, strike_through_offset, underlineThickness, element.outline_thickness);
+    //        addLine(this->outline_vertices, x, y, element.outline_color, strike_through_offset, underline_thickness, element.outline_thickness);
     //    }
     //}
 

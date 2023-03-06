@@ -59,13 +59,25 @@ struct text {
     qpl::f32 get_outline_thickness() const;
 
     void draw(sf::RenderTarget& target, sf::RenderStates states) const;
-    void add(const qpl::styled_string<std::basic_string<qpl::u32>>& string);
-    void create(const qpl::styled_string<std::basic_string<qpl::u32>>& string);
+    void add(const qpl::styled_string<qpl::u32_string>& string);
+    void create(const qpl::styled_string<qpl::u32_string>& string);
     void clear();
+
+    void pop_last_character();
+
+    template<typename T>
+    text& operator<<(const T& value) {
+        qpl::styled_string<qpl::u32_string> string;
+        string.clear_copy_style(this->last_element);
+        string.elements[0u].text = qpl::to_u32_string(value);
+        this->add(string);
+        return *this;
+    }
 
     //std::unordered_map<sf::Glyph, std::array<qsf::vertex, 6u>> glyph_vertices;
 
     const sf::Font* font{};
+    qpl::styled_string<qpl::u32_string>::element last_element;
     qpl::u32 character_size{ 30 };
     qpl::f32 letter_spacing_factor{ 1.f };
     qpl::f32 line_spacing_factor{ 1.f };
