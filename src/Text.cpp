@@ -129,6 +129,11 @@ qpl::f32 text::get_line_spacing() const {
 qpl::f32 text::get_line_spacing_pixels() const {
     return this->font->getLineSpacing(this->character_size) * this->line_spacing_factor;
 }
+qpl::f32 text::get_white_space_width() const {
+    auto whitespace_width = this->font->getGlyph(U' ', this->character_size, false).advance;
+    auto letter_spacing = (whitespace_width / 3.f) * (this->letter_spacing_factor - 1.f);
+    return whitespace_width + letter_spacing;
+}
 qpl::u32 text::get_style() const {
     return this->style;
 }
@@ -163,6 +168,7 @@ void text::create(const qpl::styled_string<qpl::u32_string>& string) {
     this->clear();
     this->add(string);
 }
+
 void text::add(const qpl::styled_string<qpl::u32_string>& string) {
     if (!this->font) {
         return;

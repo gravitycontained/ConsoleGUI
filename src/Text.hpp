@@ -57,6 +57,7 @@ struct text {
     qpl::f32 get_line_spacing_pixels() const;
     qpl::u32 get_style() const;
     qpl::f32 get_outline_thickness() const;
+    qpl::f32 get_white_space_width() const;
 
     void draw(sf::RenderTarget& target, sf::RenderStates states) const;
     void add(const qpl::styled_string<qpl::u32_string>& string);

@@ -8,6 +8,15 @@ struct console {
 	text text;
 	qpl::styled_string<qpl::u32_string> string;
 	qpl::styled_string<qpl::u32_string> input_string;
+	std::vector<std::wstring> input_string_split;
+	std::vector<std::wstring> string_split;
+	std::vector<std::wstring> string_and_input_split;
+
+	qpl::vec2is selection_rectangle_start;
+	qpl::vec2is selection_rectangle_end;
+
+	std::vector<qsf::rectangle> selection_rangles;
+
 	qsf::view view;
 	qpl::vec2f dimension;
 	qpl::isize zooms = 0;
@@ -29,10 +38,13 @@ struct console {
 	qpl::size before_input_vertices_size = qpl::size_max;
 	qpl::size before_input_outline_vertices_size = qpl::size_max;
 	qpl::vec2f before_input_text_position;
+	qpl::size before_input_text_rows;
 	qpl::vec2s cursor_position;
 	bool accept_input = false;
 	bool enter_pressed = false;
-
+	bool text_entered = false;
+	bool dragging = false;
+	qpl::vec2f clicked_mouse_position;
 
 	void init() {
 		this->scroll_transition_animation.set_duration(0.4);
@@ -51,15 +63,19 @@ struct console {
 	}
 	void calculate_default_character_size() {
 		this->character_size.y = this->text.get_line_spacing_pixels();
-		this->character_size.x = this->text.font->getGlyph(U'x', this->text.character_size, false).bounds.width;
+		this->character_size.x = this->text.get_white_space_width();
 	}
 
 	void track_before_input_values() {
 		this->before_input_vertices_size = this->text.vertices.size();
 		this->before_input_outline_vertices_size = this->text.outline_vertices.size();
 		this->before_input_text_position = this->text.text_position;
+		this->before_input_text_rows = this->text.rows;
 	}
 	void start_accepting_input() {
+		if (this->accept_input) {
+			return;
+		}
 		this->accept_input = true;
 		this->track_before_input_values();
 		this->cursor_position = { 0, 0 };
@@ -114,9 +130,27 @@ struct console {
 		this->scroll_transition_animation.reset();
 	}
 
+	void update_string_and_input_split() {
+		this->string_and_input_split = this->string_split;
+		this->string_and_input_split.reserve(this->string_split.size() + this->input_string_split.size());
+		for (auto& i : this->input_string_split) {
+			this->string_and_input_split.push_back(i);
+		}
+	}
+	void update_string_split() {
+		this->string_split = qpl::string_split_allow_empty(qpl::to_basic_string<wchar_t>(this->string.string()), L'\n');
+	}
+	void update_input_string_split() {
+		this->input_string_split = qpl::string_split_allow_empty(qpl::to_basic_string<wchar_t>(this->input_string.string()), L'\n');
+		this->update_string_and_input_split();
+	}
 	void update_cursor_position(bool reset_timer = false) {
-
-		auto off = this->cursor_position * this->character_size;
+		auto cursor_pos_with_tabs = this->cursor_position;
+		if (this->cursor_position.y < this->input_string_split.size()) {
+			auto count = qpl::count(this->input_string_split[this->cursor_position.y].substr(0u, this->cursor_position.x), L'\t');
+			cursor_pos_with_tabs.x += count * 3u;
+		}
+		auto off = cursor_pos_with_tabs * this->character_size;
 		this->cursor.set_position(this->before_input_text_position + off - qpl::vec(0.0f, this->text.character_size));
 		if (reset_timer) {
 			this->cursor_blink_timer.reset();
@@ -132,14 +166,25 @@ struct console {
 		this->text.text_position = this->before_input_text_position;
 		this->text.vertices.resize(this->before_input_vertices_size);
 		this->text.outline_vertices.resize(this->before_input_outline_vertices_size);
+		this->text.rows = this->before_input_text_rows;
 		this->text.add(this->input_string);
 		this->update_cursor_position(false);
 	}
 	void add_text_input(const qpl::u32_string& string) {
-		auto split = qpl::string_split(qpl::to_basic_string<wchar_t>(string), L'\n');
-		if (split.size() > 1) {
-			this->cursor_position.y += (split.size() - 1);
-			this->cursor_position.x = split.back().length();
+
+		if (string == qpl::to_u32_string(U'\t')) {
+			qpl::println("tab");
+		}
+		auto count = qpl::count(qpl::to_basic_string<wchar_t>(string), L'\n');
+		if (count) {
+			auto split = qpl::string_split_allow_empty(qpl::to_basic_string<wchar_t>(string), L'\n');
+			this->cursor_position.y += count;
+			if (split.size()) {
+				this->cursor_position.x = split.back().length();
+			}
+			else {
+				this->cursor_position.x = 0u;
+			}
 		}
 		else {
 			this->cursor_position.x += string.length();
@@ -147,13 +192,25 @@ struct console {
 
 		this->input_string << string;
 		this->update_input_text_graphics();
+		this->update_input_string_split();
 
-		this->update_cursor_position(false);
+		this->update_cursor_position(true);
 	}
 	void pop_last_character() {
 		if (this->input_string.size() && this->input_string.elements.back().text.length()) {
 			this->input_string.elements.back().text.pop_back();
+			this->update_input_string_split();
 			this->update_input_text_graphics();
+
+			if (this->cursor_position.x) {
+				--this->cursor_position.x;
+				this->update_cursor_position(true);
+			}
+			else if (this->cursor_position.y) {
+				--this->cursor_position.y;
+				this->cursor_position.x = this->get_input_text_width(this->cursor_position.y);
+				this->update_cursor_position(true);
+			}
 		}
 	}
 
@@ -178,16 +235,31 @@ struct console {
 		this->update_cursor_dimension();
 		this->update_cursor_position(false);
 	}
+
+
+	qpl::size get_text_height() const {
+		return this->string_and_input_split.size();
+	}
+	qpl::size get_text_width(qpl::size y) const {
+		if (y >= this->string_and_input_split.size()) {
+			return 0u;
+		}
+		return this->string_and_input_split[y].length();
+	}
 	qpl::size get_input_text_width(qpl::size y) const {
-		auto split = qpl::string_split(qpl::to_basic_string<wchar_t>(this->input_string.string()), L'\n');
-		return split.at(y).length();
+		if (y >= this->input_string_split.size()) {
+			return 0u;
+		}
+		return this->input_string_split[y].length();
 	}
 	qpl::size get_input_text_height() const {
-		auto split = qpl::string_split(qpl::to_basic_string<wchar_t>(this->input_string.string()), L'\n');
-		return split.size();
+		return this->input_string_split.size();
 	}
+
+
 	void update_text_input(const qsf::event_info& event) {
 		this->enter_pressed = false;
+		this->text_entered = false;
 		if (!this->accept_input) {
 			return;
 		}
@@ -197,6 +269,7 @@ struct console {
 			if (event.key_pressed(sf::Keyboard::V)) {
 				this->add_text_input(qpl::to_u32_string(qsf::copy_from_clipboard()));
 				special_input = true;
+				this->text_entered = true;
 			}
 		}
 		if (event.key_pressed(sf::Keyboard::Backspace)) {
@@ -207,10 +280,16 @@ struct console {
 			this->add_text_input(qpl::to_u32_string('\n'));
 			special_input = true;
 			this->enter_pressed = true;
+			this->text_entered = true;
 		}
 		if (event.key_pressed(sf::Keyboard::Right)) {
 			if (this->cursor_position.x < this->get_input_text_width(this->cursor_position.y)) {
 				++this->cursor_position.x;
+				this->update_cursor_position(true);
+			}
+			else if (this->cursor_position.y < this->get_input_text_height() - 1) {
+				++this->cursor_position.y;
+				this->cursor_position.x = 0u;
 				this->update_cursor_position(true);
 			}
 		}
@@ -219,30 +298,104 @@ struct console {
 				--this->cursor_position.x;
 				this->update_cursor_position(true);
 			}
-		}
-		if (event.key_pressed(sf::Keyboard::Up)) {
-			if (this->cursor_position.y) {
+			else if (this->cursor_position.y) {
 				--this->cursor_position.y;
+				this->cursor_position.x = this->get_input_text_width(this->cursor_position.y);
 				this->update_cursor_position(true);
 			}
-			else {
+		}
+		if (event.key_pressed(sf::Keyboard::Up)) {
+			if (this->get_input_text_height() <= 1u) {
 				//todo add select last command
+			}
+			else if (this->cursor_position.y) {
+				--this->cursor_position.y;
+				this->cursor_position.x = qpl::min(this->cursor_position.x, this->get_input_text_width(this->cursor_position.y));
+				this->update_cursor_position(true);
 			}
 		}
 		if (event.key_pressed(sf::Keyboard::Down)) {
-			if (this->cursor_position.y < this->get_input_text_height()) {
-				++this->cursor_position.y;
-				this->update_cursor_position(true);
-			}
-			else {
+			if (this->get_input_text_height() <= 1u) {
 				this->input_string.clear();
 				this->update_input_text_graphics();
 				special_input = true;
 			}
+			else if (this->cursor_position.y < this->get_input_text_height() - 1) {
+				++this->cursor_position.y;
+				this->cursor_position.x = qpl::min(this->cursor_position.x, this->get_input_text_width(this->cursor_position.y));
+				this->update_cursor_position(true);
+			}
 		}
 		if (event.is_text_entered() && !special_input) {
 			this->add_text_input(event.u32_text_entered());
+			this->text_entered = true;
 		}
+	}
+
+	qpl::vec2s position_to_text_position(qpl::vec2f position) const {
+		return qpl::vec2s(position / this->character_size);
+	}
+	qpl::vec2s position_to_text_position_ceil(qpl::vec2f position) const {
+		return qpl::vec2s((position / this->character_size).ceil());
+	}
+
+	void make_selection_rectangles() {
+		auto min = this->selection_rectangle_start;
+		auto max = this->selection_rectangle_end;
+
+		if (max.y < min.y) {
+			std::swap(min, max);
+		}
+		else if (max.x < min.x) {
+			std::swap(min, max);
+		}
+		min.y = qpl::max(0ll, min.y);
+		max.y = qpl::min(max.y, qpl::signed_cast(this->get_text_height()));
+
+		auto size = qpl::max(0ll, (max.y - min.y) + 1);
+		this->selection_rangles.resize(size);
+		for (qpl::isize i = min.y + 1; i < max.y - 1; ++i) {
+			qpl::println("i = ", i);
+
+			auto index = i - min.y;
+			if (index >= this->selection_rangles.size()) {
+				qpl::println("out of bounds");
+				qpl::system_pause();
+			}
+			auto pos = qpl::vec2s(0ull, i);
+			this->selection_rangles[index].set_position(pos * this->character_size);
+			this->selection_rangles[index].set_dimension(qpl::vec(this->get_text_width(i) * this->text.get_white_space_width(), this->text.get_line_spacing_pixels()));
+			this->selection_rangles[index].set_color(qpl::rgb::cyan().with_alpha(50));
+
+			qpl::println("hitbox = ", this->selection_rangles[index].get_hitbox());
+		}
+	}
+
+	void update_selection_rectangle(const qsf::event_info& event) {
+		if (event.left_mouse_clicked()) {
+			this->clicked_mouse_position = event.mouse_position();
+			this->dragging = true;
+
+			this->selection_rectangle_start = this->position_to_text_position(event.mouse_position() + this->view.position);
+		}
+		if (this->dragging) {
+			this->selection_rectangle_end = this->position_to_text_position_ceil(event.mouse_position() + this->view.position);
+			this->make_selection_rectangles();
+		}
+
+		if (event.left_mouse_released()) {
+			this->dragging = false;
+		}
+	}
+	void update_cursor() {
+
+		auto f = this->cursor_blink_timer.elapsed_f();
+		qpl::f64 progress = 1.0;
+		if (f > 0.5) {
+			auto time = (f - 0.5) / this->cursor_interval_duration;
+			progress = 1.0 - qpl::triangle_progression(std::fmod(time, 1.0));
+		}
+		this->cursor.set_color(this->cursor.get_color().with_alpha(progress * 255));
 	}
 
 	void update(const qsf::event_info& event) {
@@ -314,6 +467,22 @@ struct console {
 		}
 
 		this->update_text_input(event);
+
+		if (this->text_entered) {
+			auto input_pos = qpl::isize_cast(this->text.rows - this->visible_rows) + 1;
+			auto input_pos_end = qpl::isize_cast(this->text.rows);
+			if (this->view_row < input_pos) {
+				this->view_row = input_pos;
+				this->prepare_scroll();
+			}
+			if (this->view_row > input_pos_end) {
+				this->view_row = input_pos_end;
+				this->prepare_scroll();
+			}
+		}
+
+		this->update_cursor();
+		this->update_selection_rectangle(event);
 	}
 
 
@@ -331,6 +500,8 @@ struct console {
 
 		qpl::println("Elapsed = ", clock.elapsed().small_descriptive_string());
 		auto size = this->text.vertices.size() + this->text.outline_vertices.size();
+		this->update_string_split();
+		this->update_string_and_input_split();
 	}
 	void create(const qpl::styled_string<qpl::u32_string>& string) {
 		this->text.clear();
@@ -347,7 +518,7 @@ struct console {
 			if (qpl::random_b(0.1)) {
 				new_string << qpl::get_random_color();
 			}
-			new_string << qpl::get_random_lowercase_uppercase_number_string(dim.x) << '\n';
+			new_string << qpl::get_random_lowercase_uppercase_number_string(qpl::random(dim.x / 2.0, dim.x * 1.5)) << '\n';
 		}
 		this->add(new_string);
 	}
@@ -359,12 +530,10 @@ struct console {
 		//draw.draw(rect, this->view);
 
 		if (this->accept_input) {
-			auto time = this->cursor_blink_timer.elapsed_f();
-			if (std::fmod(time, this->cursor_interval_duration) < this->cursor_interval_duration / 2) {
-				draw.draw(this->cursor, this->view);
-			}
+			draw.draw(this->cursor, this->view);
 		}
 		draw.draw(this->text, this->view);
+		draw.draw(this->selection_rangles, this->view);
 		draw.draw(this->scroll_bar);
 	}
 };
