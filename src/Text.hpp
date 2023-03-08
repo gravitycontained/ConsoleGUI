@@ -58,6 +58,8 @@ struct text {
     qpl::u32 get_style() const;
     qpl::f32 get_outline_thickness() const;
     qpl::f32 get_white_space_width() const;
+    qpl::f32 get_underline_position() const;
+    qpl::f32 get_chracter_top_offset() const;
 
     void draw(sf::RenderTarget& target, sf::RenderStates states) const;
     void add(const qpl::styled_string<qpl::u32_string>& string);

@@ -34,8 +34,8 @@ struct main_state : qsf::base_state {
 	console console;
 };
 
-
 int main() try {
+
 	qsf::framework framework;
 	framework.set_title("QPL");
 	framework.add_font("consola", "resources/consola.ttf");

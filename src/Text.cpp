@@ -65,10 +65,10 @@ namespace {
 
         qpl::size ctr = 0u;
         glyph_quad result;
-        result[0u] = glyph_quad_vertex{ qpl::vec2f(left - italic_shear * top, top), qpl::vec2f(u1, v1) };
+        result[0u] = glyph_quad_vertex{ qpl::vec2f(left  - italic_shear * top, top), qpl::vec2f(u1, v1) };
         result[1u] = glyph_quad_vertex{ qpl::vec2f(right - italic_shear * top, top), qpl::vec2f(u2, v1) };
-        result[2u] = glyph_quad_vertex{ qpl::vec2f(left - italic_shear * bottom, bottom), qpl::vec2f(u1, v2) };
-        result[3u] = glyph_quad_vertex{ qpl::vec2f(left - italic_shear * bottom, bottom), qpl::vec2f(u1, v2) };
+        result[2u] = glyph_quad_vertex{ qpl::vec2f(left  - italic_shear * bottom, bottom), qpl::vec2f(u1, v2) };
+        result[3u] = glyph_quad_vertex{ qpl::vec2f(left  - italic_shear * bottom, bottom), qpl::vec2f(u1, v2) };
         result[4u] = glyph_quad_vertex{ qpl::vec2f(right - italic_shear * top, top), qpl::vec2f(u2, v1) };
         result[5u] = glyph_quad_vertex{ qpl::vec2f(right - italic_shear * bottom, bottom), qpl::vec2f(u2, v2) };
         return result;
@@ -133,6 +133,12 @@ qpl::f32 text::get_white_space_width() const {
     auto whitespace_width = this->font->getGlyph(U' ', this->character_size, false).advance;
     auto letter_spacing = (whitespace_width / 3.f) * (this->letter_spacing_factor - 1.f);
     return whitespace_width + letter_spacing;
+}
+qpl::f32 text::get_underline_position() const {
+    return this->font->getUnderlinePosition(this->character_size);
+}
+qpl::f32 text::get_chracter_top_offset() const {
+    return this->character_size + this->font->getGlyph(U'A', this->character_size, false).bounds.top;
 }
 qpl::u32 text::get_style() const {
     return this->style;

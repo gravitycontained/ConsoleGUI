@@ -24,6 +24,7 @@ struct scroll_bar {
 	bool hovering = false;
 	bool hovering_background = false;
 	bool dragging = false;
+	bool allow_dragging = true;
 	bool clicked_on_background_below = false;
 	bool clicked_on_background_above = false;
 	bool released_dragging = false;
@@ -115,7 +116,7 @@ struct scroll_bar {
 
 		this->hovering = hitbox.contains(event.mouse_position());
 
-		if (this->hovering && event.left_mouse_clicked()) {
+		if (this->hovering && event.left_mouse_clicked() && this->allow_dragging) {
 			this->dragging_position = event.mouse_position();
 			this->dragging = true;
 		}
