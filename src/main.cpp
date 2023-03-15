@@ -15,14 +15,32 @@ struct main_state : qsf::base_state {
 		this->console.add(new_string);
 	}
 
+	void add_count_up() {
+		qpl::styled_string<qpl::u32_string> new_string;
+		for (qpl::size i = 0u; i < 0x50'000; ++i) {
+
+			auto glyph = this->console.colored_text.get_glyph(i, this->console.colored_text.character_size, false);
+			char32_t value = i;
+			//new_string << i << ": " << qpl::to_u32_string(value) << " (" << glyph.textureRect.left << " " << glyph.textureRect.top << " " << glyph.textureRect.width << " " << glyph.textureRect.height << '\n';
+			new_string << ": " << "\n";
+			//if (i % 100 == 0u) {
+			//	new_string << '\n';
+			//}
+		}
+		this->console.add(new_string);
+	}
+
 	void init() override {
 		this->console.set_font("consola");
+		//this->console.set_unicode_font("unifont");
+		this->console.set_border_texture(qsf::get_texture("border"));
 
 		this->clear_color = qpl::rgb(12, 12, 12);
 
 		this->call_on_resize();
 
 		this->add_random();
+		this->add_count_up();
 		this->console.set_input_color(qpl::aqua);
 		this->console.start_accepting_input();
 	}
@@ -34,10 +52,14 @@ struct main_state : qsf::base_state {
 		this->update(this->console);
 
 		if (this->console.line_entered) {
-			qpl::println("text = \"", this->console.get_last_input_line(), "\"");
-			if (this->console.get_last_input_line() == L"func") {
+
+			auto input = this->console.get_last_input_line();
+			qpl::println("text = \"", input, "\"");
+			if (input == L"func") {
+
 				this->console.stop_accepting_input();
 			}
+			
 		}
 
 		if (this->event().key_pressed(sf::Keyboard::Tab)) {
@@ -62,6 +84,8 @@ int main() try {
 	qsf::framework framework;
 	framework.set_title("QPL");
 	framework.add_font("consola", "resources/consola.ttf");
+	framework.add_font("unifont", "resources/unifont.ttf");
+	framework.add_texture("border", "resources/border.png");
 	framework.set_dimension({ 1400u, 950u });
 
 	framework.add_state<main_state>();
