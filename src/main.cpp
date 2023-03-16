@@ -16,23 +16,56 @@ struct main_state : qsf::base_state {
 	}
 
 	void add_count_up() {
+
+		std::vector<qpl::size> double_wides;
+
+		auto default_advance = this->console.colored_text.get_unicode_glyph(U'x', this->console.colored_text.character_size, false);
+
 		qpl::styled_string<qpl::u32_string> new_string;
 		for (qpl::size i = 0u; i < 0x50'000; ++i) {
 
-			auto glyph = this->console.colored_text.get_glyph(i, this->console.colored_text.character_size, false);
+			auto glyph = this->console.colored_text.get_unicode_glyph(i, this->console.colored_text.character_size, false);
 			char32_t value = i;
-			//new_string << i << ": " << qpl::to_u32_string(value) << " (" << glyph.textureRect.left << " " << glyph.textureRect.top << " " << glyph.textureRect.width << " " << glyph.textureRect.height << '\n';
-			new_string << ": " << "\n";
-			//if (i % 100 == 0u) {
-			//	new_string << '\n';
-			//}
+			//new_string << qpl::to_string(i) << std::string(": ") << qpl::to_u32_string(value) << std::string(" (") << qpl::to_string(glyph.textureRect.left) << std::string(" ") << qpl::to_string(glyph.textureRect.top) << std::string(" ") << qpl::to_string(glyph.textureRect.width) << std::string(" ") << qpl::to_string(glyph.textureRect.height) << std::string("\n");
+			new_string << qpl::to_u32_string(value);
+
+			bool double_wide = qpl::unicode_character_length(i) == 2u;
+			auto glyph_big = glyph.advance / default_advance.advance >= 1.5;
+
+			if (double_wide != glyph_big) {
+				qpl::println("sadge");
+			}
+			if (glyph_big) {
+				double_wides.push_back(i);
+			}
+			
+			
+			if (i % 100 == 0u) {
+				new_string << '\n';
+			}
 		}
 		this->console.add(new_string);
+
+		qpl::size before = 0u;
+		std::vector<std::pair<qpl::size, qpl::size>> ranges;
+		for (qpl::size i = 0u; i < double_wides.size(); ++i) {
+			if (qpl::find(double_wides, i)) {
+				if (ranges.size() && i == before + 1) {
+					++ranges.back().second;
+				}
+				else {
+					ranges.push_back(std::pair(i, 0ull));
+				}
+				before = i;
+			}
+		}
+
+		qpl::println(ranges);
 	}
 
 	void init() override {
 		this->console.set_font("consola");
-		//this->console.set_unicode_font("unifont");
+		this->console.set_unicode_font("unifont");
 		this->console.set_border_texture(qsf::get_texture("border"));
 
 		this->clear_color = qpl::rgb(12, 12, 12);
